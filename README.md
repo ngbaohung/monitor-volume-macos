@@ -7,12 +7,14 @@ macOS can't change the volume of HDMI audio. The app offers two modes, switchabl
 
 - **Monitor**: changes the monitor's **own hardware volume** over DDC/CI (MCCS VCP `0x62`
   volume, `0x8D` mute). No audio is processed, but every computer on the monitor shares the level.
-- **Mac**: turns the Mac's audio down in software using a Core Audio process tap. The monitor is
-  held at 100%, so another computer (e.g. Windows) on the same monitor keeps its own volume.
-  Needs the *System Audio Recording* permission, and macOS shows a recording indicator while it runs.
+- **Mac**: turns the Mac's audio down in software using a Core Audio process tap, without touching
+  the monitor's own volume. The monitor keeps the level set in Monitor mode, which is what another
+  computer (e.g. Windows) on the same monitor gets. Needs the *System Audio Recording* permission,
+  and macOS shows a recording indicator while it runs.
 
-A fresh install starts in Mac mode. Each mode keeps its own level. Switching to Mac remembers the monitor's level and restores it when
-you switch back.
+A fresh install starts in Mac mode. Each mode keeps its own level, and switching modes never
+changes the monitor's volume. Example: set Monitor to 70%, switch to Mac and set it to 30%. The Mac
+plays at 30% of the monitor's 70%, and Windows gets 70%.
 
 ## Features
 
@@ -22,8 +24,8 @@ you switch back.
 - Switch the sound output, and choose which device plays alerts and sound effects
 - Opens at login (enabled on first launch, toggle in the menu), optionally setting the monitor
   to a chosen level (default 10%) when it starts at login
-- Monitor mode: optionally resets the monitor to 100% when the Mac sleeps or shuts down, so
-  another computer on the same monitor gets full volume; your level is restored when the Mac wakes
+- Optionally resets the monitor to 100% when the Mac sleeps or shuts down, so another computer
+  on the same monitor gets full volume; the monitor's level is restored when the Mac wakes
 
 ## Build & install
 

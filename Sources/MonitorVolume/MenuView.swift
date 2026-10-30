@@ -45,10 +45,8 @@ struct MenuView: View {
                     .disabled(!controller.setVolumeAtLogin)
                 }
                 .disabled(!controller.launchAtLogin)
-                if controller.mode == .hardware {
-                    Toggle("Reset to 100% when Mac sleeps", isOn: $controller.resetOnSleep)
-                        .help("Gives another computer on this monitor full volume. Your level is restored on wake.")
-                }
+                Toggle("Reset monitor to 100% when Mac sleeps", isOn: $controller.resetOnSleep)
+                    .help("Gives another computer on this monitor full volume. The monitor's level is restored on wake.")
             }
             .toggleStyle(.switch)
             .controlSize(.mini)
@@ -108,12 +106,34 @@ struct MenuView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            Text(controller.mode == .hardware
-                 ? "Changes the monitor's own volume. Other computers on this monitor share it."
-                 : "The Mac turns its own audio down. The monitor stays at 100% for other computers.")
+            Text(modeDescription)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// What other computers on the monitor get, accounting for the reset-on-sleep option
+    /// (the reset changes the volume only, so a muted monitor stays muted).
+    private var modeDescription: String {
+        let afterSleep = "while the Mac is awake, and 100% once it sleeps or shuts down"
+        switch controller.mode {
+        case .hardware:
+            return controller.resetOnSleep
+                ? "Changes the monitor's own volume. Other computers get this level \(afterSleep)."
+                : "Changes the monitor's own volume. Other computers on this monitor share it."
+        case .software:
+            let intro = "The Mac turns its own audio down."
+            guard controller.isConnected else {
+                return "\(intro) The monitor keeps its own level for other computers."
+            }
+            if controller.hardwareMuted {
+                return "\(intro) The monitor is muted for other computers; change it in the Monitor tab."
+            }
+            let level = "\(controller.hardwareVolume * 100 / max(controller.hardwareMaxVolume, 1))%"
+            return controller.resetOnSleep
+                ? "\(intro) Other computers get the monitor's \(level) \(afterSleep)."
+                : "\(intro) The monitor stays at \(level) for other computers; change it in the Monitor tab."
         }
     }
 

@@ -7,7 +7,8 @@ import ServiceManagement
 enum VolumeMode: String {
     /// The monitor's own speaker volume, over DDC/CI. Shared with every computer on the monitor.
     case hardware
-    /// The Mac turns its audio down before sending it; the monitor stays at 100%.
+    /// The Mac turns its audio down before sending it; the monitor keeps its own level
+    /// (set in Monitor mode), which is what other computers on the monitor get.
     case software
 }
 
@@ -135,14 +136,12 @@ final class VolumeController {
         displayName = NSScreen.screens
             .first { CGDisplayIsBuiltin($0.displayID) == 0 }?
             .localizedName ?? "Monitor"
-        if let display, mode == .hardware, let pendingVolume {
+        if let display, let pendingVolume {
             // Queued before the read below on the same serial queue, so the read sees the new value.
             display.write(.volume, value: UInt16(pendingVolume))
             self.pendingVolume = nil
         }
         refresh()
-        // Software mode keeps the monitor itself at full volume.
-        if mode == .software && softwareRunning { setMonitorToFull() }
     }
 
     /// Re-reads volume and mute from the monitor (it may have changed via its own buttons).
@@ -237,24 +236,12 @@ final class VolumeController {
 
     // MARK: Software volume
 
-    /// Each mode keeps its own level. Mac mode holds the monitor at 100%, so the monitor's own
-    /// level is saved on the way in and restored on the way out.
+    /// Each mode keeps its own level; switching never changes the monitor's own volume.
     private func switchMode(from oldMode: VolumeMode) {
-        let defaults = UserDefaults.standard
         switch mode {
         case .software:
-            defaults.set(hardwareVolume, forKey: "monitorVolumeBeforeMacMode")
-            defaults.set(hardwareMuted, forKey: "monitorMutedBeforeMacMode")
             updateEngine()
         case .hardware:
-            // Restore the monitor *before* the engine stops unmuting the original audio.
-            if let display, let saved = defaults.object(forKey: "monitorVolumeBeforeMacMode") as? Int {
-                let muted = defaults.bool(forKey: "monitorMutedBeforeMacMode")
-                display.writeNow(.volume, value: UInt16(saved))
-                if muted { display.writeNow(.mute, value: 1) }
-                hardwareVolume = saved
-                hardwareMuted = muted
-            }
             stopEngine()
             softwareProblem = nil
         }
@@ -290,7 +277,6 @@ final class VolumeController {
             try engine.start(device: device)
             softwareRunning = true
             softwareProblem = nil
-            setMonitorToFull()
             NSLog("MonitorVolume: software volume running on \(device.name), own process object: \(AudioOutput.currentProcessObjectID.map(String.init) ?? "none")")
         } catch {
             NSLog("MonitorVolume: software volume failed: \(error.localizedDescription)")
@@ -308,28 +294,6 @@ final class VolumeController {
     private func applySoftwareGain() {
         let level = Float(softwareVolume) / 100
         engine.setGain(softwareMuted ? 0 : level * level)
-    }
-
-    /// Reads the monitor's real level first (cached values may predate the first DDC read), saves it
-    /// if nothing was saved yet, e.g. a fresh install that starts in Mac mode, then sets 100%.
-    private func setMonitorToFull() {
-        guard let display else { return }
-        display.read(.volume) { result in
-            guard let result else { return }
-            Task { @MainActor in
-                let defaults = UserDefaults.standard
-                if defaults.object(forKey: "monitorVolumeBeforeMacMode") == nil {
-                    defaults.set(Int(result.current), forKey: "monitorVolumeBeforeMacMode")
-                }
-                guard self.mode == .software else { return }
-                let full = Int(max(result.max, 1))
-                display.write(.volume, value: UInt16(full))
-                display.write(.mute, value: 2)
-                self.hardwareMaxVolume = full
-                self.hardwareVolume = full
-                self.hardwareMuted = false
-            }
-        }
     }
 
     func openAudioCaptureSettings() {
@@ -418,7 +382,7 @@ final class VolumeController {
     }
 
     private func resetForSleep() {
-        guard mode == .hardware, resetOnSleep, let display else { return }
+        guard resetOnSleep, let display else { return }
         volumeBeforeSleep = hardwareVolume
         display.writeNow(.volume, value: UInt16(maxVolume))
     }
