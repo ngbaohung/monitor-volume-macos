@@ -202,18 +202,42 @@ struct MenuView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Play sound effects through")
                 .font(.system(size: 13, weight: .semibold))
-            Picker("Play sound effects through", selection: Binding(
-                get: { controller.soundEffectsOutputID ?? 0 },
-                set: { controller.selectSoundEffectsOutput($0) }
-            )) {
-                ForEach(controller.soundEffectsDevices) { device in
-                    Label(device.name, systemImage: device.symbolName).tag(device.id)
+            // A full-width button that opens a native menu: SwiftUI's menu Picker and Menu both
+            // size themselves to their text and ignore a full-width frame on macOS.
+            Button(action: showSoundEffectsMenu) {
+                let current = controller.soundEffectsDevices.first { $0.id == controller.soundEffectsOutputID }
+                HStack(spacing: 8) {
+                    Image(systemName: current?.symbolName ?? "speaker.wave.2.fill")
+                    Text(current?.name ?? "Choose a device")
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity)
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .frame(maxWidth: .infinity)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .font(.system(size: 13))
         }
+    }
+
+    /// Pops up like a standard pop-up button: the current device sits under the pointer, with a checkmark.
+    private func showSoundEffectsMenu() {
+        let menu = NSMenu()
+        var selected: NSMenuItem?
+        for device in controller.soundEffectsDevices {
+            let item = ClosureMenuItem(title: device.name) { controller.selectSoundEffectsOutput(device.id) }
+            item.image = NSImage(systemSymbolName: device.symbolName, accessibilityDescription: nil)
+            if device.id == controller.soundEffectsOutputID {
+                item.state = .on
+                selected = item
+            }
+            menu.addItem(item)
+        }
+        menu.popUp(positioning: selected, at: NSEvent.mouseLocation, in: nil)
     }
 
     private var notConnected: some View {
@@ -276,5 +300,24 @@ private struct OutputRow: View {
         .buttonStyle(.plain)
         .onHover { hovered.wrappedValue = $0 }
         .padding(.horizontal, -6)
+    }
+}
+
+/// A menu item that runs a closure; it targets itself so no separate target object is needed.
+private final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(title: String, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(fire), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    @objc private func fire() {
+        handler()
     }
 }
