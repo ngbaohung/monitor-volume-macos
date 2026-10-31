@@ -36,13 +36,18 @@ final class VolumeController {
         case failed(String)
     }
 
-    var mode: VolumeMode {
+    /// Every session starts in Mac mode; Monitor mode has to be unlocked first (see `selectTab`).
+    private(set) var mode: VolumeMode = .software {
         didSet {
             guard mode != oldValue else { return }
-            UserDefaults.standard.set(mode.rawValue, forKey: "volumeMode")
             switchMode(from: oldValue)
         }
     }
+    /// Monitor mode changes the monitor's hardware settings, so it's locked at each launch (i.e. each
+    /// login) until the user confirms the warning.
+    private(set) var isMonitorModeUnlocked = false
+    /// The tab shown in the panel. It can differ from `mode` while the locked Monitor tab is open.
+    private(set) var selectedTab: VolumeMode = .software
 
     // The active mode's values; this is what the UI and the keys work with.
     var volume: Int { mode == .hardware ? hardwareVolume : softwareVolume }
@@ -87,24 +92,21 @@ final class VolumeController {
     /// Volume to apply as soon as the monitor is (re)connected: the login level, or the level before sleep.
     @ObservationIgnored private var pendingVolume: Int?
     @ObservationIgnored private var volumeBeforeSleep: Int?
+    @ObservationIgnored private var reconnectTask: Task<Void, Never>?
 
     init() {
         let defaults = UserDefaults.standard
         defaults.register(defaults: ["keysEnabled": true, "resetOnSleep": true,
                                      "setVolumeAtLogin": true, "loginVolume": 10,
-                                     "volumeMode": VolumeMode.software.rawValue, "softwareVolume": 30])
-        mode = VolumeMode(rawValue: defaults.string(forKey: "volumeMode") ?? "") ?? .hardware
+                                     "softwareVolume": 30])
         softwareVolume = defaults.integer(forKey: "softwareVolume")
         keysEnabled = defaults.bool(forKey: "keysEnabled")
         resetOnSleep = defaults.bool(forKey: "resetOnSleep")
         setVolumeAtLogin = defaults.bool(forKey: "setVolumeAtLogin")
         loginVolume = defaults.integer(forKey: "loginVolume")
+        // Mac mode only: the login volume never touches the monitor's hardware setting.
         if setVolumeAtLogin && LoginSession.appWasLaunchedAtLogin {
-            if mode == .hardware {
-                pendingVolume = loginVolume
-            } else {
-                softwareVolume = loginVolume
-            }
+            softwareVolume = loginVolume
         }
         soundEffectsDevices = AudioOutput.soundEffectsDevices(from: outputDevices)
 
@@ -123,10 +125,22 @@ final class VolumeController {
 
     // MARK: Display connection
 
+    /// Finds the monitor over DDC. Right after boot or wake the monitor often doesn't answer yet,
+    /// so keep retrying for a while instead of giving up after one attempt.
     func reconnect() {
-        Task.detached(priority: .userInitiated) {
-            let display = DDCDisplay.discover()
-            await MainActor.run { self.attach(display) }
+        reconnectTask?.cancel()
+        reconnectTask = Task {
+            let attempts = 15
+            for attempt in 1...attempts {
+                let display = await Task.detached(priority: .userInitiated) { DDCDisplay.discover() }.value
+                guard !Task.isCancelled else { return }
+                if display != nil || attempt == attempts {
+                    attach(display)
+                    return
+                }
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+            }
         }
     }
 
@@ -235,6 +249,24 @@ final class VolumeController {
     }
 
     // MARK: Software volume
+
+    /// Selecting the locked Monitor tab only shows its lock notice; the mode changes once unlocked.
+    func selectTab(_ tab: VolumeMode) {
+        selectedTab = tab
+        if tab == .software || isMonitorModeUnlocked {
+            mode = tab
+        }
+    }
+
+    func unlockMonitorMode() {
+        isMonitorModeUnlocked = true
+        selectTab(.hardware)
+    }
+
+    /// The panel always (re)opens on the active mode's tab, so a locked Monitor tab doesn't linger.
+    func resetSelectedTab() {
+        selectedTab = mode
+    }
 
     /// Each mode keeps its own level; switching never changes the monitor's own volume.
     private func switchMode(from oldMode: VolumeMode) {

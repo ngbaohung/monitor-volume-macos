@@ -9,7 +9,9 @@ struct MenuView: View {
         VStack(alignment: .leading, spacing: 14) {
             header
             modePicker
-            if controller.isAvailable {
+            if isLockedMonitorTab {
+                monitorModeLockedNotice
+            } else if controller.isAvailable {
                 volumeSlider
             } else if controller.mode == .hardware {
                 notConnected
@@ -28,28 +30,38 @@ struct MenuView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle("Use volume keys", isOn: $controller.keysEnabled)
-                Toggle("Open at login", isOn: Binding(
+            // Every row has the same height, label on the left and switch on the right, like System Settings.
+            VStack(alignment: .leading, spacing: 8) {
+                SettingRow("Use volume keys", isOn: $controller.keysEnabled)
+                SettingRow("Open at login", isOn: Binding(
                     get: { controller.launchAtLogin },
                     set: { controller.setLaunchAtLogin($0) }
                 ))
-                HStack {
-                    Toggle("Set volume at login", isOn: $controller.setVolumeAtLogin)
-                    Spacer()
-                    Stepper(value: $controller.loginVolume, in: 0...100, step: 5) {
-                        Text("\(controller.loginVolume)%")
-                            .monospacedDigit()
-                            .foregroundStyle(controller.setVolumeAtLogin ? .primary : .secondary)
+                if controller.selectedTab == .software {
+                    // Type a value (applied on Return or when the field loses focus) or step by 1%.
+                    let loginVolume = Binding(
+                        get: { controller.loginVolume },
+                        set: { controller.loginVolume = min(max($0, 0), 100) }
+                    )
+                    SettingRow("Set volume at login", isOn: $controller.setVolumeAtLogin) {
+                        HStack(spacing: 2) {
+                            TextField("Login volume", value: loginVolume, format: .number)
+                                .labelsHidden()
+                                .multilineTextAlignment(.trailing)
+                                .monospacedDigit()
+                                .frame(width: 34)
+                            Text("%").foregroundStyle(.secondary)
+                            Stepper("Login volume", value: loginVolume, in: 0...100, step: 1)
+                                .labelsHidden()
+                        }
+                        .controlSize(.mini)
+                        .disabled(!controller.setVolumeAtLogin)
                     }
-                    .disabled(!controller.setVolumeAtLogin)
+                    .disabled(!controller.launchAtLogin)
                 }
-                .disabled(!controller.launchAtLogin)
-                Toggle("Reset monitor to 100% when Mac sleeps", isOn: $controller.resetOnSleep)
-                    .help("Gives another computer on this monitor full volume. The monitor's level is restored on wake.")
+                SettingRow("Reset monitor to 100% on sleep", isOn: $controller.resetOnSleep)
+                    .help("When the Mac sleeps or shuts down, the monitor goes to 100% so another computer on it gets full volume. The monitor's level is restored on wake.")
             }
-            .toggleStyle(.switch)
-            .controlSize(.mini)
             .font(.system(size: 13))
 
             Divider()
@@ -72,7 +84,11 @@ struct MenuView: View {
         }
         .padding(16)
         .frame(width: 300)
-        .onAppear { controller.refresh() }
+        .onAppear {
+            controller.resetSelectedTab()
+            controller.refresh()
+        }
+        .onDisappear { controller.resetSelectedTab() }
     }
 
     private var header: some View {
@@ -89,7 +105,7 @@ struct MenuView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if controller.isAvailable {
+            if controller.isAvailable && !isLockedMonitorTab {
                 Text("\(controller.isMuted ? 0 : controller.volume)%")
                     .font(.system(size: 13, weight: .medium).monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -100,21 +116,55 @@ struct MenuView: View {
 
     private var modePicker: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Picker("Volume mode", selection: $controller.mode) {
-                Text("Monitor").tag(VolumeMode.hardware)
-                Text("Mac").tag(VolumeMode.software)
+            // Custom segmented control: the system one can't show an icon next to a segment's title.
+            HStack(spacing: 2) {
+                ModeSegment(title: "Monitor", isSelected: controller.selectedTab == .hardware,
+                            isLocked: !controller.isMonitorModeUnlocked) {
+                    controller.selectTab(.hardware)
+                }
+                ModeSegment(title: "Mac", isSelected: controller.selectedTab == .software, isLocked: false) {
+                    controller.selectTab(.software)
+                }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            Text(modeDescription)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            .padding(2)
+            .background(.quaternary, in: .capsule)
+            if !isLockedMonitorTab {
+                Text(modeDescription)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
     /// What other computers on the monitor get, accounting for the reset-on-sleep option
     /// (the reset changes the volume only, so a muted monitor stays muted).
+    private var isLockedMonitorTab: Bool {
+        controller.selectedTab == .hardware && !controller.isMonitorModeUnlocked
+    }
+
+    /// The whole content of the Monitor tab until it's unlocked for this session.
+    private var monitorModeLockedNotice: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Monitor mode is locked", systemImage: "lock.fill")
+                .font(.system(size: 13, weight: .semibold))
+            Text("It changes your monitor's own hardware volume setting over DDC/CI, not a software or driver setting like Mac mode. The new level stays on the monitor and applies to every computer connected to it.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Button(action: controller.unlockMonitorMode) {
+                Label("Unlock Monitor Mode", systemImage: "lock.open.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(.orange)
+            .controlSize(.large)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.12), in: .rect(cornerRadius: 14))
+    }
+
     private var modeDescription: String {
         let afterSleep = "while the Mac is awake, and 100% once it sleeps or shuts down"
         switch controller.mode {
@@ -319,5 +369,73 @@ private final class ClosureMenuItem: NSMenuItem {
 
     @objc private func fire() {
         handler()
+    }
+}
+
+/// One segment of the Monitor / Mac switch, drawn like a macOS segmented control.
+private struct ModeSegment: View {
+    let title: String
+    let isSelected: Bool
+    let isLocked: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if isLocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Text(title)
+            }
+            .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .background {
+                if isSelected {
+                    // Adapts like the system control: white in light mode, raised grey in dark mode.
+                    Capsule()
+                        .fill(Color(nsColor: .controlColor))
+                        .shadow(color: .black.opacity(0.15), radius: 1, y: 0.5)
+                }
+            }
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .help(isLocked ? "Locked: Monitor mode changes the monitor's own hardware volume" : "")
+    }
+}
+
+/// A settings row of fixed height: label, optional extra controls, then a switch at the trailing edge.
+private struct SettingRow<Accessory: View>: View {
+    let title: String
+    @Binding var isOn: Bool
+    let accessory: Accessory
+
+    init(_ title: String, isOn: Binding<Bool>, @ViewBuilder accessory: () -> Accessory) {
+        self.title = title
+        self._isOn = isOn
+        self.accessory = accessory()
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            accessory
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+        }
+        .frame(height: 22)
+    }
+}
+
+extension SettingRow where Accessory == EmptyView {
+    init(_ title: String, isOn: Binding<Bool>) {
+        self.init(title, isOn: isOn) { EmptyView() }
     }
 }

@@ -12,8 +12,9 @@ macOS can't change the volume of HDMI audio. The app offers two modes, switchabl
   computer (e.g. Windows) on the same monitor gets. Needs the *System Audio Recording* permission,
   and macOS shows a recording indicator while it runs.
 
-A fresh install starts in Mac mode. Each mode keeps its own level, and switching modes never
-changes the monitor's volume. Example: set Monitor to 70%, switch to Mac and set it to 30%. The Mac
+The app always starts in Mac mode. Monitor mode is locked (🔒) at every launch, i.e. every login,
+until you confirm a warning that it changes the monitor's own hardware setting. Each mode keeps its
+own level, and switching modes never changes the monitor's volume. Example: set Monitor to 70%, switch to Mac and set it to 30%. The Mac
 plays at 30% of the monitor's 70%, and Windows gets 70%.
 
 ## Features
@@ -22,8 +23,9 @@ plays at 30% of the monitor's 70%, and Windows gets 70%.
   any other device (Mac speakers, headphones) via macOS as usual. Each press = 1% on the monitor
 - Circular volume-knob overlay and a Control Center-style menu bar panel
 - Switch the sound output, and choose which device plays alerts and sound effects
-- Opens at login (enabled on first launch, toggle in the menu), optionally setting the monitor
-  to a chosen level (default 10%) when it starts at login
+- Opens at login (enabled on first launch, toggle in the menu), optionally setting the Mac-mode
+  level to a chosen value (default 10%) when it starts at login. This never touches the monitor's
+  own volume
 - Optionally resets the monitor to 100% when the Mac sleeps or shuts down, so another computer
   on the same monitor gets full volume; the monitor's level is restored when the Mac wakes
 
