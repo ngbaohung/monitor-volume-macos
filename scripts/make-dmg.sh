@@ -23,8 +23,8 @@ Monitor Volume – install
    Or run in Terminal:  xattr -dr com.apple.quarantine "/Applications/Monitor Volume.app"
 3. Click the speaker icon in the menu bar › "Open Accessibility Settings…"
    and turn on Monitor Volume so the volume keys work.
-4. To use Mac mode (software volume), pick "Mac" in the panel and allow
-   System Audio Recording when asked.
+4. The app starts in Software mode: allow System Audio Recording when asked.
+   Hardware mode (the monitor's own volume setting) is locked until you unlock it in the panel.
 
 The app adds itself to Login Items on first launch.
 EOF

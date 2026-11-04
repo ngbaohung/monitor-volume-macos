@@ -8,7 +8,7 @@ enum VolumeMode: String {
     /// The monitor's own speaker volume, over DDC/CI. Shared with every computer on the monitor.
     case hardware
     /// The Mac turns its audio down before sending it; the monitor keeps its own level
-    /// (set in Monitor mode), which is what other computers on the monitor get.
+    /// (set in Hardware mode), which is what other computers on the monitor get.
     case software
 }
 
@@ -36,17 +36,17 @@ final class VolumeController {
         case failed(String)
     }
 
-    /// Every session starts in Mac mode; Monitor mode has to be unlocked first (see `selectTab`).
+    /// Every session starts in Software mode; Hardware mode has to be unlocked first (see `selectTab`).
     private(set) var mode: VolumeMode = .software {
         didSet {
             guard mode != oldValue else { return }
             switchMode(from: oldValue)
         }
     }
-    /// Monitor mode changes the monitor's hardware settings, so it's locked at each launch (i.e. each
+    /// Hardware mode changes the monitor's own settings, so it's locked at each launch (i.e. each
     /// login) until the user confirms the warning.
     private(set) var isMonitorModeUnlocked = false
-    /// The tab shown in the panel. It can differ from `mode` while the locked Monitor tab is open.
+    /// The tab shown in the panel. It can differ from `mode` while the locked Hardware tab is open.
     private(set) var selectedTab: VolumeMode = .software
 
     // The active mode's values; this is what the UI and the keys work with.
@@ -104,7 +104,7 @@ final class VolumeController {
         resetOnSleep = defaults.bool(forKey: "resetOnSleep")
         setVolumeAtLogin = defaults.bool(forKey: "setVolumeAtLogin")
         loginVolume = defaults.integer(forKey: "loginVolume")
-        // Mac mode only: the login volume never touches the monitor's hardware setting.
+        // Software mode only: the login volume never touches the monitor's hardware setting.
         if setVolumeAtLogin && LoginSession.appWasLaunchedAtLogin {
             softwareVolume = loginVolume
         }
@@ -250,7 +250,7 @@ final class VolumeController {
 
     // MARK: Software volume
 
-    /// Selecting the locked Monitor tab only shows its lock notice; the mode changes once unlocked.
+    /// Selecting the locked Hardware tab only shows its lock notice; the mode changes once unlocked.
     func selectTab(_ tab: VolumeMode) {
         selectedTab = tab
         if tab == .software || isMonitorModeUnlocked {
@@ -263,7 +263,7 @@ final class VolumeController {
         selectTab(.hardware)
     }
 
-    /// The panel always (re)opens on the active mode's tab, so a locked Monitor tab doesn't linger.
+    /// The panel always (re)opens on the active mode's tab, so a locked Hardware tab doesn't linger.
     func resetSelectedTab() {
         selectedTab = mode
     }

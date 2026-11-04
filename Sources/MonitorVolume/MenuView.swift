@@ -118,12 +118,13 @@ struct MenuView: View {
         VStack(alignment: .leading, spacing: 6) {
             // Custom segmented control: the system one can't show an icon next to a segment's title.
             HStack(spacing: 2) {
-                ModeSegment(title: "Monitor", isSelected: controller.selectedTab == .hardware,
+                // Software first: it's the mode every session starts in; the locked one sits on the right.
+                ModeSegment(title: "Software", isSelected: controller.selectedTab == .software, isLocked: false) {
+                    controller.selectTab(.software)
+                }
+                ModeSegment(title: "Hardware", isSelected: controller.selectedTab == .hardware,
                             isLocked: !controller.isMonitorModeUnlocked) {
                     controller.selectTab(.hardware)
-                }
-                ModeSegment(title: "Mac", isSelected: controller.selectedTab == .software, isLocked: false) {
-                    controller.selectTab(.software)
                 }
             }
             .padding(2)
@@ -143,16 +144,16 @@ struct MenuView: View {
         controller.selectedTab == .hardware && !controller.isMonitorModeUnlocked
     }
 
-    /// The whole content of the Monitor tab until it's unlocked for this session.
+    /// The whole content of the Hardware tab until it's unlocked for this session.
     private var monitorModeLockedNotice: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Monitor mode is locked", systemImage: "lock.fill")
+            Label("Hardware mode is locked", systemImage: "lock.fill")
                 .font(.system(size: 13, weight: .semibold))
-            Text("It changes your monitor's own hardware volume setting over DDC/CI, not a software or driver setting like Mac mode. The new level stays on the monitor and applies to every computer connected to it.")
+            Text("It changes your monitor's own hardware volume setting over DDC/CI, not a software or driver setting like Software mode. The new level stays on the monitor and applies to every computer connected to it.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             Button(action: controller.unlockMonitorMode) {
-                Label("Unlock Monitor Mode", systemImage: "lock.open.fill")
+                Label("Unlock Hardware Mode", systemImage: "lock.open.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.glassProminent)
@@ -178,12 +179,12 @@ struct MenuView: View {
                 return "\(intro) The monitor keeps its own level for other computers."
             }
             if controller.hardwareMuted {
-                return "\(intro) The monitor is muted for other computers; change it in the Monitor tab."
+                return "\(intro) The monitor is muted for other computers; change it in the Hardware tab."
             }
             let level = "\(controller.hardwareVolume * 100 / max(controller.hardwareMaxVolume, 1))%"
             return controller.resetOnSleep
                 ? "\(intro) Other computers get the monitor's \(level) \(afterSleep)."
-                : "\(intro) The monitor stays at \(level) for other computers; change it in the Monitor tab."
+                : "\(intro) The monitor stays at \(level) for other computers; change it in the Hardware tab."
         }
     }
 
@@ -403,7 +404,7 @@ private struct ModeSegment: View {
             .contentShape(.capsule)
         }
         .buttonStyle(.plain)
-        .help(isLocked ? "Locked: Monitor mode changes the monitor's own hardware volume" : "")
+        .help(isLocked ? "Locked: Hardware mode changes the monitor's own volume setting" : "")
     }
 }
 
