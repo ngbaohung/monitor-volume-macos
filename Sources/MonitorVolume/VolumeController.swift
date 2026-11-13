@@ -68,10 +68,14 @@ final class VolumeController {
     var keysEnabled: Bool {
         didSet { UserDefaults.standard.set(keysEnabled, forKey: "keysEnabled") }
     }
-    /// Put the monitor at 100% when the Mac sleeps or shuts down, so another computer on the
-    /// same monitor (e.g. Windows) gets full volume and controls it itself. Restored on wake.
+    /// Put the monitor at `sleepVolume` when the Mac sleeps or shuts down, so another computer on
+    /// the same monitor (e.g. Windows) gets a known level. Restored on wake.
     var resetOnSleep: Bool {
         didSet { UserDefaults.standard.set(resetOnSleep, forKey: "resetOnSleep") }
+    }
+    /// The monitor level `resetOnSleep` sets, 0...100.
+    var sleepVolume: Int {
+        didSet { UserDefaults.standard.set(sleepVolume, forKey: "sleepVolume") }
     }
     /// Set the monitor to `loginVolume` when the app is started automatically at login.
     var setVolumeAtLogin: Bool {
@@ -97,11 +101,12 @@ final class VolumeController {
     init() {
         let defaults = UserDefaults.standard
         defaults.register(defaults: ["keysEnabled": true, "resetOnSleep": true,
-                                     "setVolumeAtLogin": true, "loginVolume": 10,
+                                     "setVolumeAtLogin": true, "loginVolume": 10, "sleepVolume": 50,
                                      "softwareVolume": 30])
         softwareVolume = defaults.integer(forKey: "softwareVolume")
         keysEnabled = defaults.bool(forKey: "keysEnabled")
         resetOnSleep = defaults.bool(forKey: "resetOnSleep")
+        sleepVolume = defaults.integer(forKey: "sleepVolume")
         setVolumeAtLogin = defaults.bool(forKey: "setVolumeAtLogin")
         loginVolume = defaults.integer(forKey: "loginVolume")
         // Software mode only: the login volume never touches the monitor's hardware setting.
@@ -416,7 +421,7 @@ final class VolumeController {
     private func resetForSleep() {
         guard resetOnSleep, let display else { return }
         volumeBeforeSleep = hardwareVolume
-        display.writeNow(.volume, value: UInt16(maxVolume))
+        display.writeNow(.volume, value: UInt16(sleepVolume * hardwareMaxVolume / 100))
     }
 }
 

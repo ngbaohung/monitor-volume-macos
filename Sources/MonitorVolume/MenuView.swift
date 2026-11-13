@@ -38,29 +38,17 @@ struct MenuView: View {
                     set: { controller.setLaunchAtLogin($0) }
                 ))
                 if controller.selectedTab == .software {
-                    // Type a value (applied on Return or when the field loses focus) or step by 1%.
-                    let loginVolume = Binding(
-                        get: { controller.loginVolume },
-                        set: { controller.loginVolume = min(max($0, 0), 100) }
-                    )
                     SettingRow("Set volume at login", isOn: $controller.setVolumeAtLogin) {
-                        HStack(spacing: 2) {
-                            TextField("Login volume", value: loginVolume, format: .number)
-                                .labelsHidden()
-                                .multilineTextAlignment(.trailing)
-                                .monospacedDigit()
-                                .frame(width: 34)
-                            Text("%").foregroundStyle(.secondary)
-                            Stepper("Login volume", value: loginVolume, in: 0...100, step: 1)
-                                .labelsHidden()
-                        }
-                        .controlSize(.mini)
-                        .disabled(!controller.setVolumeAtLogin)
+                        PercentField(title: "Login volume", value: $controller.loginVolume)
+                            .disabled(!controller.setVolumeAtLogin)
                     }
                     .disabled(!controller.launchAtLogin)
                 }
-                SettingRow("Reset monitor to 100% on sleep", isOn: $controller.resetOnSleep)
-                    .help("When the Mac sleeps or shuts down, the monitor goes to 100% so another computer on it gets full volume. The monitor's level is restored on wake.")
+                SettingRow("Monitor on sleep", isOn: $controller.resetOnSleep) {
+                    PercentField(title: "Monitor volume on sleep", value: $controller.sleepVolume)
+                        .disabled(!controller.resetOnSleep)
+                }
+                .help("When the Mac sleeps or shuts down, the monitor's own volume is set to this level so another computer on it gets a known volume. The monitor's previous level is restored on wake.")
             }
             .font(.system(size: 13))
 
@@ -167,7 +155,7 @@ struct MenuView: View {
     }
 
     private var modeDescription: String {
-        let afterSleep = "while the Mac is awake, and 100% once it sleeps or shuts down"
+        let afterSleep = "while the Mac is awake, and \(controller.sleepVolume)% once it sleeps or shuts down"
         switch controller.mode {
         case .hardware:
             return controller.resetOnSleep
@@ -438,5 +426,26 @@ private struct SettingRow<Accessory: View>: View {
 extension SettingRow where Accessory == EmptyView {
     init(_ title: String, isOn: Binding<Bool>) {
         self.init(title, isOn: isOn) { EmptyView() }
+    }
+}
+
+/// A typeable 0–100 percentage (applied on Return or when the field loses focus) with 1% arrows.
+private struct PercentField: View {
+    let title: String
+    @Binding var value: Int
+
+    var body: some View {
+        let clamped = Binding(get: { value }, set: { value = min(max($0, 0), 100) })
+        HStack(spacing: 2) {
+            TextField(title, value: clamped, format: .number)
+                .labelsHidden()
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .frame(width: 34)
+            Text("%").foregroundStyle(.secondary)
+            Stepper(title, value: clamped, in: 0...100, step: 1)
+                .labelsHidden()
+        }
+        .controlSize(.mini)
     }
 }

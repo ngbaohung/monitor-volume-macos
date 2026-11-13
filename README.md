@@ -26,8 +26,9 @@ switch to Software and set it to 30%. The Mac plays at 30% of the monitor's 70%,
 - Opens at login (enabled on first launch, toggle in the menu), optionally setting the Software-mode
   level to a chosen value (default 10%) when it starts at login. This never touches the monitor's
   own volume
-- Optionally resets the monitor to 100% when the Mac sleeps or shuts down, so another computer
-  on the same monitor gets full volume; the monitor's level is restored when the Mac wakes
+- Optionally sets the monitor's own volume to a chosen level (default 50%) when the Mac sleeps or
+  shuts down, so another computer on the same monitor gets a known volume; the monitor's previous
+  level is restored when the Mac wakes
 
 ## Build & install
 
